@@ -1,0 +1,14 @@
+{
+  "name": "tgbot-rss-worker",
+  "version": "2.0.0",
+  "description": "Telegram RSS Bot on Cloudflare Workers with email push support",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail"
+  },
+  "devDependencies": {
+    "wrangler": "^3.60.0"
+  }
+}

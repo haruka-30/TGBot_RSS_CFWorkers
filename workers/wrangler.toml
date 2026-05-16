@@ -1,0 +1,16 @@
+name = "tgbot-rss"
+main = "_worker.js"
+compatibility_date = "2024-01-01"
+
+# 定时触发器 - 每分钟检查RSS (可改为 */5 * * * * 节省请求)
+[triggers]
+crons = ["* * * * *"]
+
+# KV 命名空间绑定 (运行 `wrangler kv:namespace create "KV"` 后填入 id)
+[[kv_namespaces]]
+binding = "KV"
+id = "your-kv-namespace-id"
+
+# 环境变量通过以下命令设置:
+# wrangler secret put BOT_TOKEN
+# wrangler secret put ADMIN_ID
