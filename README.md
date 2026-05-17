@@ -55,6 +55,10 @@ docker run -d \
 
 免费云平台也可运行，镜像`kwxos/tgbot-rss:latest`,只需要在环境变量中，填写上面的变量即可执行，如环境变量BotToken对应的值57xxxxxxxxxx:xxxxxxxxxxxxxxxxsvjM
 
+### cloudflare workers部署
+
+复制workers/_worker.js文件夹里的所有内容到workers即可
+
 ### VPS直接运行
 
 #### 安装步骤
