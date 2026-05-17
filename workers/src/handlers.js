@@ -4,7 +4,7 @@
 
 import { Storage } from './storage.js';
 import { EmailSender } from './email.js';
-import { RSSChecker } from './rss.js';
+import { RSSChecker, fetchFeed } from './rss.js';
 
 // ========== 命令处理 ==========
 
@@ -235,15 +235,13 @@ export async function handleMessage(bot, message, env) {
 
       // 验证 RSS 源
       try {
-        const response = await fetch(url, {
-          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; TGBot-RSS/2.0)' }
-        });
-        if (!response.ok) {
-          await bot.sendMessage(userId, `❌ RSS源请求失败: HTTP ${response.status}`);
+        const result = await fetchFeed(url);
+        if (!result.ok) {
+          await bot.sendMessage(userId, `❌ RSS源请求失败: ${result.error || ('HTTP ' + result.status)}`);
           return;
         }
-        const content = await response.text();
-        if (!content.includes('<rss') && !content.includes('<feed') && !content.includes('<?xml')) {
+        const content = result.text;
+        if (!content.includes('<rss') && !content.includes('<feed') && !content.includes('<?xml') && !content.includes('<channel')) {
           await bot.sendMessage(userId, '❌ 未检测到有效的RSS/Atom格式');
           return;
         }

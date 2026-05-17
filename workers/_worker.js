@@ -358,6 +358,65 @@ class EmailSender {
 // ====================================================================
 // RSS 解析与检查
 // ====================================================================
+
+/**
+ * 备用 User-Agent 列表 (按优先级排序)
+ * 部分站点 (如 NodeSeek / 奶昔论坛 / IDCFlare / NodeLoc) 对非浏览器 UA 直接返回 403,
+ * 因此优先使用真实浏览器 UA, 失败后回退到主流 RSS 阅读器 UA.
+ */
+const FETCH_USER_AGENTS = [
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0',
+  'Mozilla/5.0 (compatible; Feedly/1.0; +http://www.feedly.com/fetcher.html)',
+  'Mozilla/5.0 (compatible; Inoreader/1.0; +https://www.inoreader.com)',
+  'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
+];
+
+/**
+ * 通用 RSS 抓取, 带浏览器请求头与多 UA 回退,
+ * 用于绕过部分论坛/Cloudflare 站点对非浏览器请求的 403 拦截.
+ */
+async function fetchFeed(url) {
+  let lastStatus = 0;
+  let lastError = '';
+  let referer = '';
+  try {
+    const u = new URL(url);
+    referer = `${u.protocol}//${u.host}/`;
+  } catch (_) { /* ignore */ }
+
+  for (const ua of FETCH_USER_AGENTS) {
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        redirect: 'follow',
+        headers: {
+          'User-Agent': ua,
+          'Accept': 'application/rss+xml, application/atom+xml, application/xml;q=0.9, application/json;q=0.8, text/xml;q=0.8, text/html;q=0.7, */*;q=0.5',
+          'Accept-Language': 'zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
+          ...(referer ? { 'Referer': referer } : {})
+        },
+        cf: { cacheTtl: 0, cacheEverything: false }
+      });
+
+      lastStatus = response.status;
+      if (response.ok) {
+        return { ok: true, status: response.status, text: await response.text() };
+      }
+      // 仅对反爬常见状态码继续重试
+      if (![403, 401, 429, 451, 503, 520, 521, 522, 523].includes(response.status)) {
+        return { ok: false, status: response.status, text: '', error: `HTTP ${response.status}` };
+      }
+      lastError = `HTTP ${response.status}`;
+    } catch (e) {
+      lastError = e.message || String(e);
+    }
+  }
+  return { ok: false, status: lastStatus, text: '', error: lastError || '请求失败' };
+}
+
 class RSSChecker {
   constructor(kv, bot) {
     this.storage = new Storage(kv);
@@ -393,11 +452,9 @@ class RSSChecker {
   }
 
   async fetchRSS(sub) {
-    const r = await fetch(sub.url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; TGBot-RSS/2.0)' }
-    });
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    const text = await r.text();
+    const result = await fetchFeed(sub.url);
+    if (!result.ok) throw new Error(result.error || `HTTP ${result.status}`);
+    const text = result.text;
     const items = this.parseRSS(text);
     if (items.length === 0) return null;
 
@@ -754,10 +811,10 @@ async function handleMessage(bot, message, env) {
         return;
       }
       try {
-        const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; TGBot-RSS/2.0)' } });
-        if (!r.ok) { await bot.sendMessage(userId, `❌ RSS源请求失败: HTTP ${r.status}`); return; }
-        const c = await r.text();
-        if (!c.includes('<rss') && !c.includes('<feed') && !c.includes('<?xml')) {
+        const r = await fetchFeed(url);
+        if (!r.ok) { await bot.sendMessage(userId, `❌ RSS源请求失败: ${r.error || ('HTTP ' + r.status)}`); return; }
+        const c = r.text;
+        if (!c.includes('<rss') && !c.includes('<feed') && !c.includes('<?xml') && !c.includes('<channel')) {
           await bot.sendMessage(userId, '❌ 未检测到有效的RSS/Atom格式'); return;
         }
       } catch (e) {

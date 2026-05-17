@@ -5,6 +5,82 @@
 import { Storage } from './storage.js';
 import { EmailSender } from './email.js';
 
+/**
+ * 备用 User-Agent 列表 (按优先级排序)
+ * 部分站点 (如 NodeSeek / 奶昔论坛 / IDCFlare / NodeLoc) 对非浏览器 UA 直接返回 403,
+ * 因此优先使用真实浏览器 UA, 失败后回退到主流 RSS 阅读器 UA.
+ */
+const FETCH_USER_AGENTS = [
+  // 真实 Chrome (Windows)
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  // 真实 Firefox
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0',
+  // Feedly
+  'Mozilla/5.0 (compatible; Feedly/1.0; +http://www.feedly.com/fetcher.html)',
+  // Inoreader
+  'Mozilla/5.0 (compatible; Inoreader/1.0; +https://www.inoreader.com)',
+  // Googlebot (部分站点会单独放行)
+  'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
+];
+
+/**
+ * 通用 RSS 抓取函数, 带浏览器请求头和多 UA 回退.
+ * 可被订阅校验和定时检查共用.
+ *
+ * @param {string} url
+ * @returns {Promise<{ok: boolean, status: number, text: string, error?: string}>}
+ */
+export async function fetchFeed(url) {
+  let lastStatus = 0;
+  let lastError = '';
+
+  // 尝试根据 URL 推断 Referer (部分论坛会校验 Referer)
+  let referer = '';
+  try {
+    const u = new URL(url);
+    referer = `${u.protocol}//${u.host}/`;
+  } catch (_) { /* ignore */ }
+
+  for (let i = 0; i < FETCH_USER_AGENTS.length; i++) {
+    const ua = FETCH_USER_AGENTS[i];
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        redirect: 'follow',
+        headers: {
+          'User-Agent': ua,
+          'Accept': 'application/rss+xml, application/atom+xml, application/xml;q=0.9, application/json;q=0.8, text/xml;q=0.8, text/html;q=0.7, */*;q=0.5',
+          'Accept-Language': 'zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
+          ...(referer ? { 'Referer': referer } : {})
+        },
+        // 禁用 Cloudflare 边缘缓存, 避免命中之前的 403 响应
+        cf: { cacheTtl: 0, cacheEverything: false }
+      });
+
+      lastStatus = response.status;
+
+      if (response.ok) {
+        const text = await response.text();
+        return { ok: true, status: response.status, text };
+      }
+
+      // 仅对反爬常见的状态码继续尝试下一个 UA
+      // 其它 4xx (如 404) 直接返回, 避免无意义重试
+      if (![403, 401, 429, 451, 503, 520, 521, 522, 523].includes(response.status)) {
+        return { ok: false, status: response.status, text: '', error: `HTTP ${response.status}` };
+      }
+
+      lastError = `HTTP ${response.status}`;
+    } catch (e) {
+      lastError = e.message || String(e);
+    }
+  }
+
+  return { ok: false, status: lastStatus, text: '', error: lastError || '请求失败' };
+}
+
 export class RSSChecker {
   constructor(kv, bot) {
     this.storage = new Storage(kv);
@@ -67,17 +143,12 @@ export class RSSChecker {
    * 获取 RSS 内容
    */
   async fetchRSS(sub) {
-    const response = await fetch(sub.url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; TGBot-RSS/2.0; +https://github.com/IonRh/TGBot_RSS)'
-      }
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+    const result = await fetchFeed(sub.url);
+    if (!result.ok) {
+      throw new Error(result.error || `HTTP ${result.status}`);
     }
 
-    const text = await response.text();
+    const text = result.text;
     const items = this.parseRSS(text);
 
     if (items.length === 0) return null;
