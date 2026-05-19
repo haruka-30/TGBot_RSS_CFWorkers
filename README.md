@@ -12,7 +12,7 @@
 
 ## 注：rss订阅如果大于9个建议前往源项目使用服务器/容器部署
 
--源项目地址：*https://github.com/IonRh/TGBot_RSS*
+- 源项目地址：*https://github.com/IonRh/TGBot_RSS*
 
 ## ✨ 新增功能
 
