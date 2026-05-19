@@ -194,4 +194,4 @@ TXT  @              v=spf1 include:relay.mailchannels.net ~all
 
 MIT
 
-## ai编码，纯图一乐
+## ai编码，纯图一乐，有问题请自行解决，笔者也不懂 W(￣_￣)W
