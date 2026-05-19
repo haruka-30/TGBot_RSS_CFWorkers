@@ -10,7 +10,7 @@
 
 基于 Cloudflare Workers 的 Telegram RSS 订阅机器人，支持关键词过滤、多用户订阅、邮件推送。
 
-## 注：rss订阅如果大于9个建议前往源项目使用服务器/容器部署，cloudflare kv空间每天有**1000次**写入次数限制，抓取频率过低无法及时接收消息
+## 注：rss订阅如果大于9个建议前往源项目使用服务器/容器部署
 
 -源项目地址：*https://github.com/IonRh/TGBot_RSS*
 
@@ -22,25 +22,21 @@
 
 ## 🚀 部署方式（按推荐顺序）
 
-> ⚠️ Cloudflare Workers 仪表板不支持直接上传 ZIP 文件（那是 Pages 的功能）。但 Workers 提供了同样便利的 "Deploy to Cloudflare 按钮" 和 "粘贴单文件" 部署方式。
-
-
-
 ### 方式一：仪表板粘贴单文件（最简单，无需 CLI）
 
 1. **创建 Worker**：
    - 登录 [Cloudflare Dashboard](https://dash.cloudflare.com)
-   - 进入 **Workers & Pages** → **Create** → **Create Worker**
-   - 起个名字（如 `tgbot-rss`），点击 **部署**
-   - 部署后点击 ****
+   - 进入 **计算** → **Workers & Pages** → **Create** → **Create Worker**
+   - 选择从hello world开始，起个名字（如 `tgbot-rss`），点击 **部署**
 
 2. **替换代码**：
+   - 点击**编辑代码**
    - 删除编辑器中的默认代码
    - 打开本仓库的 [`_worker.js`](./_worker.js) 文件，复制全部内容
    - 粘贴到编辑器中
-   - 点击 **Deploy** 保存
+   - 点击 **部署** 保存
 
-3. **绑定环境变量**（在 Worker 的 **设置** 页面）：
+4. **绑定环境变量**（在 Worker 的 **设置** 页面）：
 
    **变量和机密** → **添加变量**：
    - `BOT_TOKEN`（类型 文本/密钥）= 你的 Telegram Bot Token
